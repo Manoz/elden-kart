@@ -64,7 +64,7 @@ export const caelid = {
     grout: '#170806',
     cell: 1.5,
     glow: '#ff4a1a',
-    relief: 5,
+    relief: 3,
     rough: 0.9,
   },
   kerb: ['#5a3a34', '#3a2420'],

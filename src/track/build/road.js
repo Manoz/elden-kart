@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { KERB } from '../Centerline.js';
 import { buildStrip, loopIndices, runsOf, indexRange, merge } from './strips.js';
-import { makeRoadMaps, makeStoneKerbTexture } from '../surfaces.js';
+import { makeRoadMaps, makeRoadDetail, makeStoneKerbTexture } from '../surfaces.js';
 import {
   makeGroundTexture,
   makeWallTexture,
@@ -16,6 +16,35 @@ const decal = (mat) => {
   mat.polygonOffset = true;
   mat.polygonOffsetFactor = -2;
   mat.polygonOffsetUnits = -4;
+  return mat;
+};
+
+// size in metres of one tile of the road's fine grain
+const DETAIL_TILE = 1.2;
+
+// Multiplies a tiling detail map into the material's colour and adds its normal to the normal map.
+const withDetail = (mat, detail, repeat, amount) => {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.detailMap = { value: detail.map };
+    sh.uniforms.detailNormal = { value: detail.normalMap };
+    sh.uniforms.detailRepeat = { value: repeat };
+    sh.uniforms.detailAmount = { value: amount };
+    const normalChunk = THREE.ShaderChunk.normal_fragment_maps.replace(
+      'mapN.xy *= normalScale;',
+      `mapN.xy += ( texture2D( detailNormal, vNormalMapUv * detailRepeat ).xy * 2.0 - 1.0 ) * detailAmount;
+\tmapN.xy *= normalScale;`
+    );
+    sh.fragmentShader =
+      'uniform sampler2D detailMap;\nuniform sampler2D detailNormal;\nuniform vec2 detailRepeat;\nuniform float detailAmount;\n' +
+      sh.fragmentShader
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+\tdiffuseColor.rgb *= mix( 1.0, texture2D( detailMap, vMapUv * detailRepeat ).r * 2.0, detailAmount );`
+        )
+        .replace('#include <normal_fragment_maps>', normalChunk);
+  };
+  mat.customProgramCacheKey = () => 'detail';
   return mat;
 };
 
@@ -41,17 +70,24 @@ export function buildRoad(core, root) {
 
   // --- road surface
   const roadMaps = makeRoadMaps(L.road, L.halfWidth * 2, 24, L.seed);
+  const roadDetail = makeRoadDetail(L.seed);
   Object.values(roadMaps).forEach(track);
+  Object.values(roadDetail).forEach(track);
   const roadMat = track(
-    new THREE.MeshStandardMaterial({
-      map: roadMaps.map,
-      normalMap: roadMaps.normalMap,
-      roughness: L.road.rough ?? 0.92,
-      metalness: L.road.metal ?? 0,
-      emissive: roadMaps.glowMap ? new THREE.Color(L.road.glow) : 0x000000,
-      emissiveMap: roadMaps.glowMap ?? null,
-      emissiveIntensity: roadMaps.glowMap ? 1.4 : 0,
-    })
+    withDetail(
+      new THREE.MeshStandardMaterial({
+        map: roadMaps.map,
+        normalMap: roadMaps.normalMap,
+        roughness: L.road.rough ?? 0.92,
+        metalness: L.road.metal ?? 0,
+        emissive: roadMaps.glowMap ? new THREE.Color(L.road.glow) : 0x000000,
+        emissiveMap: roadMaps.glowMap ?? null,
+        emissiveIntensity: roadMaps.glowMap ? 1.4 : 0,
+      }),
+      roadDetail,
+      new THREE.Vector2((L.halfWidth * 2) / DETAIL_TILE, 24 / DETAIL_TILE),
+      L.road.grain ?? 1
+    )
   );
   mesh(
     buildStrip(core, { idx: all, a: (i) => [-hw(i), 0], b: (i) => [hw(i), 0], vScale: 24 }),

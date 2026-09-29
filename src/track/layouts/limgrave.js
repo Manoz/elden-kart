@@ -51,6 +51,7 @@ export const limgrave = {
     dirt: '#6a5438',
     grout: '#3b3024',
     moss: '#5a6038',
+    lichen: '#b8b18c',
     cell: 0.75,
     coverage: 0.72,
     relief: 2.5,

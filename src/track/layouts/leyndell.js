@@ -60,6 +60,7 @@ export const leyndell = {
     cell: 2.2,
     relief: 3,
     rough: 0.55,
+    grain: 0.5,
   },
   kerb: ['#e8dcc0', '#cdbd96'],
   wall: { color: '#d4c39a', post: 0xffb040, emissive: 0x1a1206, height: 1.7 },

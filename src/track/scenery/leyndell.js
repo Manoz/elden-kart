@@ -1,9 +1,11 @@
 // Leyndell: golden royal city, towers, dragon statues, braziers, Erdtree roots arching over the road.
 import * as THREE from 'three';
-import { instanced, propMaterial, addSway, scatter, roadside, part, mergeParts } from './common.js';
+import { instanced, propMaterial, scatter, roadside, part, mergeParts } from './common.js';
+import { plantTrees } from './flora.js';
 import {
-  oakGeo,
-  houseGeo,
+  leyndellBlockGeo,
+  domeHallGeo,
+  spireTowerGeo,
   towerGeo,
   wallSegGeo,
   dragonStatueGeo,
@@ -20,56 +22,41 @@ const tint = (rng, base = 1, spread = 0.2) => {
 };
 
 export function buildLeyndell(ctx) {
-  const { core, rng, uTime } = ctx;
+  const { core, rng } = ctx;
   const hw = core.layout.halfWidth;
 
-  // city: houses ringing the road
-  const houseA = houseGeo({ wall: 0xc7b38a, roof: 0x7a3f2c });
-  const houseB = houseGeo({ wall: 0xd6c69e, roof: 0x8a6a34, w: 10, d: 7, h: 9 });
-  const winMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0xffc060).multiplyScalar(2.2),
+  // the royal capital: pale stone halls, golden domes and spires ringing the road
+  const kinds = [
+    leyndellBlockGeo({ seed: 1 }),
+    leyndellBlockGeo({ seed: 4 }),
+    domeHallGeo({}),
+    spireTowerGeo({}),
+  ];
+  const stoneMat = propMaterial();
+  const litMat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    color: new THREE.Color(1.6, 1.3, 0.9),
     toneMapped: false,
   });
-  const winG = new THREE.PlaneGeometry(1.1, 1.6);
-  const spots = scatter(core, rng, { count: 900, min: 14, max: 260, tries: 60, radius: 12 });
-  const ha = [];
-  const hb = [];
-  const wins = [];
-  spots.forEach((p, k) => {
-    const s = 0.9 + rng() * 1.5;
-    const ry = Math.round(rng() * 4) * (Math.PI / 2) + (rng() - 0.5) * 0.1;
-    const item = {
+  const lists = kinds.map(() => []);
+  scatter(core, rng, { count: 400, min: 14, max: 260, tries: 60, radius: 12 }).forEach((p) => {
+    const r = rng();
+    const k = r < 0.34 ? 0 : r < 0.68 ? 1 : r < 0.86 ? 2 : 3;
+    const s = 0.8 + rng() * 0.6;
+    lists[k].push({
       x: p.x,
-      y: p.y - 0.4,
+      y: p.y - 0.6,
       z: p.z,
-      ry,
-      s: [s, s * (0.8 + rng() * 1.6), s],
-      color: tint(rng),
-    };
-    (k % 3 ? ha : hb).push(item);
-    if (k % 2 === 0) {
-      for (let w = 0; w < 3; w++) {
-        const a = ry + (w / 3) * Math.PI * 2;
-        wins.push({
-          x: p.x + Math.sin(a) * 4.1 * s,
-          y: p.y + 3.2 * s * (item.s[1] / s),
-          z: p.z + Math.cos(a) * 4.1 * s,
-          ry: a,
-          s,
-        });
-      }
-    }
+      ry: Math.round(rng() * 4) * (Math.PI / 2) + (rng() - 0.5) * 0.1,
+      s: [s, s * (0.85 + rng() * 0.5), s],
+      color: tint(rng, 1, 0.12),
+    });
   });
-  ctx.add(instanced(houseA, propMaterial(), ha));
-  ctx.add(instanced(houseB, propMaterial(), hb));
-  ctx.add(
-    instanced(
-      winG,
-      winMat,
-      wins.map((w) => ({ ...w, s: w.s }))
-    )
-  );
-  ctx.own(houseA, houseB, winG);
+  kinds.forEach((g, k) => {
+    ctx.add(instanced(g.body, stoneMat, lists[k]));
+    ctx.add(instanced(g.glow, litMat, lists[k]));
+    ctx.own(g.body, g.glow);
+  });
 
   // towers on the outskirts
   const tower = towerGeo({ stone: 0xcbb68a, roof: 0xb8862e, h: 40, r: 7 });
@@ -164,18 +151,25 @@ export function buildLeyndell(ctx) {
   ctx.own(poleG);
 
   // golden trees
-  const tree = oakGeo({ trunk: 0x4a3420, leaf: 0xd8a83a, leaf2: 0xf0c85a });
-  const treeMat = addSway(propMaterial({ emissive: 0x2a1804 }), uTime, 0.4, 11);
-  const trees = scatter(core, rng, { count: 140, min: 6, max: 60, radius: 4 }).map((p) => ({
-    x: p.x,
-    y: p.y - 0.2,
-    z: p.z,
-    ry: rng() * 6.28,
-    s: 0.8 + rng() * 0.7,
-    color: tint(rng, 1, 0.3),
-  }));
-  ctx.add(instanced(tree, treeMat, trees));
-  ctx.own(tree);
+  plantTrees(
+    ctx,
+    {
+      height: 6.5,
+      spread: 4.4,
+      bark: 0x4a3420,
+      leaves: [0xe8b83a, 0xf6d060, 0xd89a28],
+      cards: 80,
+      seed: 11,
+    },
+    scatter(core, rng, { count: 150, min: 6, max: 60, radius: 4 }).map((p) => ({
+      x: p.x,
+      y: p.y - 0.2,
+      z: p.z,
+      ry: rng() * 6.28,
+      s: 0.8 + rng() * 0.6,
+      color: tint(rng, 1, 0.25),
+    }))
+  );
 
   // pillars / arches around the plazas
   const pil = pillarGeo({ stone: 0xd9c9a0, height: 12 });

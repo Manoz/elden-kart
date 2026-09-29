@@ -14,6 +14,7 @@ The game ships no binary assets.
 - Code style: 2-space indent, single quotes, semicolons, named exports only. Prettier (`pnpm format`) and ESLint (`pnpm lint`) enforce it.
 - Units: 1 unit = 1 metre, +Y up. A kart at yaw 0 faces -Z, so the forward vector is `(-sin(yaw), 0, -cos(yaw))`.
 - Speeds: kart top speed is about 42 u/s at 150cc, about 60 when boosted. The road is 26 to 34 u wide.
+- Fog: `src/track/atmosphere.js` replaces three's fog shader chunks for every material: distance fog that thins with altitude and takes the sun's colour when looking toward it.
 - Communication: the main loop calls modules directly. Reactive systems (audio, particles, HUD) listen to the global event bus in `src/core/bus.js`.
 - Checks: `pnpm build` bundles the game and `node src/track/check.mjs` validates the circuit layouts.
 
@@ -36,25 +37,25 @@ It disposes all of it when the race ends. Physics runs in fixed substeps of at m
 
 ## Modules
 
-| Path                      | Role                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/main.js`             | Entry point. Creates `Game` and runs it                                                            |
-| `src/core/Game.js`        | Renderer, main loop, menu flow, race sessions, Grand Prix scoring, HUD feed                        |
-| `src/core/Input.js`       | Keyboard and gamepad mapped to kart inputs                                                         |
-| `src/core/ChaseCamera.js` | Chase camera and countdown fly-over                                                                |
-| `src/core/Race.js`        | Laps with checkpoint validation, ranking, finish, AI rubber banding                                |
-| `src/core/data.js`        | Static data: `CHARACTERS`, `TRACKS`, `ITEMS`, `CLASSES`, `GP_POINTS`                               |
-| `src/core/settings.js`    | `QUALITY` presets and settings persisted in `localStorage`                                         |
-| `src/core/bus.js`         | Global event emitter                                                                               |
-| `src/track/`              | Circuit generation: spline centreline, road, terrain, sky, lights, scenery, one layout per circuit |
-| `src/karts/Kart.js`       | Arcade kart physics                                                                                |
-| `src/karts/KartModel.js`  | Procedural kart and driver models, one builder per character                                       |
-| `src/ai/AIDriver.js`      | AI drivers                                                                                         |
-| `src/items/`              | Item boxes, roulette, the ten items and their meshes                                               |
-| `src/fx/FX.js`            | GPU particle systems                                                                               |
-| `src/fx/PostFX.js`        | Bloom, speed blur, vignette and colour grading                                                     |
-| `src/ui/`                 | DOM menus, HUD and canvas-drawn art                                                                |
-| `src/audio/Audio.js`      | Procedural music, sound effects and engine sound                                                   |
+| Path                      | Role                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.js`             | Entry point. Creates `Game` and runs it                                                                                                                                                   |
+| `src/core/Game.js`        | Renderer, main loop, menu flow, race sessions, Grand Prix scoring, HUD feed                                                                                                               |
+| `src/core/Input.js`       | Keyboard and gamepad mapped to kart inputs                                                                                                                                                |
+| `src/core/ChaseCamera.js` | Chase camera and countdown fly-over                                                                                                                                                       |
+| `src/core/Race.js`        | Laps with checkpoint validation, ranking, finish, AI rubber banding                                                                                                                       |
+| `src/core/data.js`        | Static data: `CHARACTERS`, `TRACKS`, `ITEMS`, `CLASSES`, `GP_POINTS`                                                                                                                      |
+| `src/core/settings.js`    | `QUALITY` presets and settings persisted in `localStorage`                                                                                                                                |
+| `src/core/bus.js`         | Global event emitter                                                                                                                                                                      |
+| `src/track/`              | Circuit generation: spline centreline, per-pixel road surfaces, terrain, sky, height fog (`atmosphere.js`), the giant tree on the horizon, vegetation and scenery, one layout per circuit |
+| `src/karts/Kart.js`       | Arcade kart physics                                                                                                                                                                       |
+| `src/karts/KartModel.js`  | Procedural kart and driver models, one builder per character                                                                                                                              |
+| `src/ai/AIDriver.js`      | AI drivers                                                                                                                                                                                |
+| `src/items/`              | Item boxes, roulette, the ten items and their meshes                                                                                                                                      |
+| `src/fx/FX.js`            | GPU particle systems                                                                                                                                                                      |
+| `src/fx/PostFX.js`        | Bloom, speed blur, vignette and colour grading                                                                                                                                            |
+| `src/ui/`                 | DOM menus, HUD and canvas-drawn art                                                                                                                                                       |
+| `src/audio/Audio.js`      | Procedural music, sound effects and engine sound                                                                                                                                          |
 
 ## Contracts
 

@@ -42,7 +42,7 @@ const MUSIC = {
           { gain: 0.05, vowel: bar % 2 ? 'oh' : 'ah', attack: 1.2 }
         );
         A.drone(c.root, t, barLen * 1.05, d, { gain: 0.07, cutoff: 260 });
-        A.pad(c.n, t, barLen * 1.02, d, { gain: 0.035, cutoff: 900, attack: 1.4 });
+        A.strings(c.n, t, barLen * 1.02, d, { gain: 0.03, cutoff: 1400, attack: 1.4 });
         if (bar % 2 === 0) A.bell(midi(c.n[2] + 24), t + sd * 2, 3.5, d, 0.03);
       }
       if (s % 2 === 0) {
@@ -54,6 +54,7 @@ const MUSIC = {
     },
   },
 
+  // Heroic folk-orchestral: driving string ostinato, timpani, horn call on each second half-phrase.
   limgrave: {
     bpm: 126,
     chords: [
@@ -62,54 +63,46 @@ const MUSIC = {
       { root: 35, n: [62, 66, 71, 74] },
       { root: 43, n: [62, 67, 71, 74] },
     ],
+    horn: [
+      { 0: [2, 6], 6: [3, 2], 8: [1, 4], 12: [2, 4] },
+      { 0: [3, 8], 8: [2, 8] },
+    ],
     step(A, d, s, bar, t, sd) {
       const c = this.chords[bar % 4];
-      const r = rng(bar * 131 + s * 7 + 3);
+      const barLen = sd * 16;
       if (s === 0) {
-        A.pad(c.n, t, sd * 16 * 1.02, d, { gain: 0.04, cutoff: 1400, attack: 0.25 });
+        A.strings(c.n, t, barLen * 1.02, d, { gain: 0.03, attack: 0.35, cutoff: 2200 });
+        A.strings([c.root + 12], t, barLen, d, { gain: 0.035, attack: 0.2, cutoff: 900 });
         if (bar % 4 === 0)
           A.choir(
             c.n.slice(0, 3).map((n) => n + 12),
             t,
-            sd * 64,
+            barLen * 4,
             d,
-            { gain: 0.022, attack: 0.8, vowel: 'oh' }
+            { gain: 0.02, attack: 1.2, vowel: 'ah' }
           );
       }
-      if (s === 0 || s === 8) A.kick(t, d, 0.5);
-      if (s === 4 || s === 12) {
-        A.clap(t, d, 0.2);
-      }
-      if (s % 4 === 2) A.hat(t, d, 0.09);
-      if (s % 2 === 1) A.hat(t, d, 0.03);
       if (s % 2 === 0) {
-        const n = s % 8 === 4 ? c.root + 12 : c.root;
-        A.pluck(midi(n), t, 0.3, d, { gain: 0.16, cutoff: 700, type: 'sawtooth' });
+        A.spiccato(midi(s % 4 === 0 ? c.root + 12 : c.root + 24), t, d, {
+          gain: 0.07,
+          cutoff: 1400,
+        });
+        const pat = [0, 1, 2, 1, 3, 2, 1, 2];
+        A.spiccato(midi(c.n[pat[(s / 2) % 8]] + 12), t, d, { gain: 0.04, cutoff: 3200 });
       }
-      const arp = [0, 2, 1, 3, 2, 1, 3, 0];
-      if (s % 2 === 0)
-        A.pluck(midi(c.n[arp[(s / 2) % 8]] + 12), t, 0.6, d, { gain: 0.07, cutoff: 3600 });
-      // folk lead phrase
-      const lead = [
-        [0, 0],
-        [3, 1],
-        [6, 2],
-        [8, 3],
-        [10, 2],
-        [12, 1],
-      ];
-      if (bar % 2 === 1) {
-        const hit = lead.find((x) => x[0] === s);
-        if (hit)
-          A.pluck(midi(c.n[hit[1]] + 12 + (r() > 0.6 ? 12 : 0)), t, 0.9, d, {
-            gain: 0.09,
-            cutoff: 4200,
-            type: 'triangle',
-          });
+      if (s === 0 || s === 8) A.timpani(midi(c.root), t, d, s === 0 ? 0.4 : 0.28);
+      if (bar % 2 === 1 && s >= 14) A.timpani(midi(c.root + (s === 14 ? 7 : 0)), t, d, 0.2);
+      if (s === 0 && bar % 4 === 0) A.taiko(t, d, 0.45);
+      if (s === 4 || s === 12) A.frame(t, d, 0.14);
+      if (bar % 4 >= 2) {
+        const hit = this.horn[(bar % 4) - 2][s];
+        if (hit) A.horn(c.n[hit[0]], t, sd * hit[1], d, 0.06);
       }
+      if (bar % 4 === 3 && s === 8) A.swell(t, sd * 8, d, 0.05);
     },
   },
 
+  // Scarlet rot: war drums, relentless low strings, dissonant screeching violins.
   caelid: {
     bpm: 138,
     chords: [
@@ -118,33 +111,46 @@ const MUSIC = {
       { root: 40, n: [52, 55, 58, 64] },
       { root: 46, n: [52, 58, 61, 64] },
     ],
+    drums: [
+      [0, 0.55],
+      [3, 0.4],
+      [6, 0.45],
+      [10, 0.5],
+      [11, 0.35],
+      [14, 0.45],
+    ],
     step(A, d, s, bar, t, sd) {
       const c = this.chords[bar % 4];
       const barLen = sd * 16;
       if (s === 0) {
-        A.drone(28, t, barLen * 1.05, d, { gain: 0.11, cutoff: 200, detune: 9 });
-        A.pad(c.n, t, barLen * 1.02, d, { gain: 0.03, cutoff: 700, attack: 0.4, detune: 25 });
-        if (bar % 2 === 1) A.screech(midi(c.n[3] + 24), t, barLen * 1.5, d, 0.03);
+        A.drone(28, t, barLen * 1.05, d, { gain: 0.075, cutoff: 200, detune: 9 });
+        A.strings(c.n, t, barLen * 1.02, d, {
+          gain: 0.028,
+          cutoff: 1100,
+          attack: 0.3,
+          vibrato: 14,
+        });
+        if (bar % 2 === 1) A.screech(midi(c.n[3] + 24), t, barLen * 1.5, d, 0.025);
+        if (bar % 4 === 0)
+          A.choir(c.n.slice(0, 3), t, barLen * 2, d, { gain: 0.03, vowel: 'oo', attack: 0.6 });
       }
-      if (s === 0 || s === 8) A.kick(t, d, 0.6);
-      if (s === 4 || s === 12) A.snare(t, d, 0.3);
-      for (const [st, f, g] of [
-        [0, 90, 0.5],
-        [3, 70, 0.4],
-        [6, 90, 0.4],
-        [10, 70, 0.45],
-        [11, 60, 0.4],
-        [14, 60, 0.45],
-      ]) {
-        if (s === st) A.tom(t, f, d, g);
-      }
+      for (const [st, g] of this.drums) if (s === st) A.taiko(t, d, g * 0.8);
+      if (s === 4 || s === 12) A.snare(t, d, 0.16);
       if ([0, 2, 3, 6, 8, 10, 11, 14].includes(s))
-        A.pluck(midi(c.root), t, 0.22, d, { gain: 0.14, cutoff: 520, type: 'sawtooth' });
-      if (s === 0 || s === 10) A.stab(c.n, t, sd * 2.5, d, 0.035);
-      if (s % 2 === 1) A.hat(t, d, 0.05);
+        A.spiccato(midi(c.root + 12), t, d, { gain: 0.1, cutoff: 900 });
+      if (s === 0 || s === 10)
+        A.brassStab(
+          c.n.map((n) => n - 12),
+          t,
+          sd * 2.5,
+          d,
+          0.04
+        );
+      if (bar % 4 === 3 && s >= 12) A.timpani(midi(c.root), t, d, 0.2 + (s - 12) * 0.05);
     },
   },
 
+  // Royal capital: brass chorale, choir, timpani on every beat, military snare, horn fanfare.
   leyndell: {
     bpm: 132,
     chords: [
@@ -153,11 +159,12 @@ const MUSIC = {
       { root: 39, n: [58, 63, 67, 70] },
       { root: 34, n: [58, 62, 65, 70] },
     ],
+    lead: { 0: [3, 3], 3: [2, 3], 8: [3, 3], 11: [1, 5] },
     step(A, d, s, bar, t, sd) {
       const c = this.chords[bar % 4];
       const barLen = sd * 16;
       if (s === 0) {
-        A.brass(c.n, t, barLen * 1.02, d, { gain: 0.045, swell: 0.5 });
+        A.brass(c.n, t, barLen * 1.02, d, { gain: 0.04, swell: 0.5 });
         A.choir(
           c.n.slice(0, 3).map((n) => n + 12),
           t,
@@ -165,22 +172,24 @@ const MUSIC = {
           d,
           { gain: 0.03, vowel: 'ah', attack: 0.5 }
         );
-        if (bar % 4 === 0) A.crash(t, d, 0.18);
+        A.strings([c.root + 12, c.root + 24], t, barLen, d, { gain: 0.03, cutoff: 1200 });
+        if (bar % 4 === 0) A.crash(t, d, 0.14);
       }
-      if (s % 4 === 0) A.kick(t, d, 0.55);
-      if (s === 4 || s === 12) A.snare(t, d, 0.3);
-      if (s === 14 || s === 15) A.tom(t, s === 14 ? 100 : 80, d, 0.4);
-      if (s % 2 === 0) A.hat(t, d, 0.06);
+      if (s % 4 === 0) A.timpani(midi(c.root), t, d, s === 0 ? 0.42 : 0.26);
+      if (s === 4 || s === 12) A.snare(t, d, 0.22);
+      if (s === 14 || s === 15) A.snare(t, d, 0.09);
+      if (bar % 4 === 3 && s === 8) A.snareRoll(t, sd * 8, d, 0.14);
       if (s % 2 === 0 && s % 4 !== 0)
-        A.pluck(midi(c.root), t, 0.25, d, { gain: 0.17, cutoff: 650, type: 'sawtooth' });
-      if (s === 0 || s === 6 || s === 10) A.brassStab(c.n, t, sd * 2.6, d, 0.05);
-      const lead = { 0: 3, 3: 2, 8: 3, 11: 1 };
-      if (bar % 4 >= 2 && lead[s] !== undefined)
-        A.brassStab([c.n[lead[s]] + 12], t, sd * 3, d, 0.05);
-      if (s === 0 && bar % 4 === 0) A.tom(t, 55, d, 0.6);
+        A.spiccato(midi(c.root + 12), t, d, { gain: 0.1, cutoff: 1000 });
+      if (s === 0 || s === 6 || s === 10) A.brassStab(c.n, t, sd * 2.6, d, 0.04);
+      const hit = this.lead[s];
+      if (bar % 4 >= 2 && hit) A.horn(c.n[hit[0]], t, sd * hit[1], d, 0.06);
+      if (bar % 4 === 3 && s >= 8)
+        A.spiccato(midi(c.n[(s - 8) % 4] + 12), t, d, { gain: 0.04, cutoff: 3600 });
     },
   },
 
+  // Haligtree: high choir, bells, harp arpeggios and a soft timpani pulse.
   haligtree: {
     bpm: 120,
     chords: [
@@ -198,20 +207,20 @@ const MUSIC = {
           t,
           barLen * 1.03,
           d,
-          { gain: 0.04, vowel: bar % 2 ? 'ee' : 'ah', attack: 1.0 }
+          { gain: 0.035, vowel: bar % 2 ? 'ee' : 'ah', attack: 1.0 }
         );
-        A.pad(c.n.slice(0, 3), t, barLen * 1.03, d, { gain: 0.03, cutoff: 1800, attack: 0.9 });
-        A.pluck(midi(c.root + 12), t, 1.6, d, { gain: 0.16, cutoff: 500, type: 'sine' });
+        A.strings(c.n.slice(0, 3), t, barLen * 1.03, d, { gain: 0.026, cutoff: 2600, attack: 0.8 });
+        A.pluck(midi(c.root + 12), t, 1.6, d, { gain: 0.14, cutoff: 500, type: 'sine' });
       }
-      if (s === 0 || s === 8) A.kick(t, d, 0.28);
-      if (s % 4 === 2) A.hat(t, d, 0.035);
+      if (s === 0 || s === 8) A.timpani(midi(c.root + 12), t, d, 0.16);
       if (s % 2 === 0) {
         const pat = [0, 1, 2, 3, 2, 3, 1, 2];
-        const n = c.n[pat[(s / 2) % 8]] + 24;
-        A.bell(midi(n), t, 2.4, d, 0.05);
+        A.bell(midi(c.n[pat[(s / 2) % 8]] + 24), t, 2.4, d, 0.045);
       }
+      if (s % 2 === 1 && bar % 2 === 0)
+        A.pluck(midi(c.n[((s - 1) / 2) % 4] + 12), t, 1.8, d, { gain: 0.045, cutoff: 3000 });
       if (s === 8)
-        A.pluck(midi(c.root + 19), t, 1.2, d, { gain: 0.08, cutoff: 2500, type: 'triangle' });
+        A.pluck(midi(c.root + 19), t, 1.2, d, { gain: 0.07, cutoff: 2500, type: 'triangle' });
     },
   },
 };
@@ -262,7 +271,7 @@ export class AudioSystem {
     this.muffle.connect(this.master).connect(this.comp).connect(ctx.destination);
 
     this.reverb = ctx.createConvolver();
-    this.reverb.buffer = this._makeImpulse(2.8, 2.6);
+    this.reverb.buffer = this._makeImpulse(3.4, 2.4);
     const revOut = ctx.createGain();
     revOut.gain.value = 0.55;
     this.reverb.connect(revOut).connect(this.muffle);
@@ -489,21 +498,54 @@ export class AudioSystem {
     const A = {
       osc,
       noise,
-      kick(t, d, g = 0.5) {
-        osc('sine', 140, t, 0.12, d, { gain: g, slideTo: 42, release: 0.16, attack: 0.002 });
-        noise(t, 0.015, d, { gain: g * 0.3, type: 'highpass', freq: 2500, release: 0.02 });
-      },
       snare(t, d, g = 0.3) {
         noise(t, 0.12, d, { gain: g, freq: 1900, q: 0.6, release: 0.1 });
         osc('triangle', 200, t, 0.06, d, { gain: g * 0.7, slideTo: 140, release: 0.06 });
       },
-      clap(t, d, g = 0.2) {
-        for (let i = 0; i < 3; i++)
-          noise(t + i * 0.011, 0.02, d, { gain: g * 0.7, freq: 1500, q: 1.2, release: 0.03 });
-        noise(t + 0.033, 0.09, d, { gain: g, freq: 1500, q: 1.2, release: 0.12 });
+      // soft frame drum / tambourine skin
+      frame(t, d, g = 0.14) {
+        noise(t, 0.05, d, { gain: g, freq: 900, q: 0.8, release: 0.12 });
+        osc('triangle', 160, t, 0.05, d, { gain: g * 0.6, slideTo: 110, release: 0.1 });
       },
-      hat(t, d, g = 0.06) {
-        noise(t, 0.02, d, { gain: g, type: 'highpass', freq: 7500, release: 0.03 });
+      snareRoll(t, dur, d, g = 0.14) {
+        const n = Math.floor(dur / 0.035);
+        for (let i = 0; i < n; i++) {
+          const k = i / n;
+          noise(t + i * 0.035, 0.03, d, {
+            gain: g * (0.35 + k * 0.9),
+            freq: 2000,
+            q: 0.6,
+            release: 0.04,
+          });
+        }
+      },
+      timpani(f, t, d, g = 0.35) {
+        osc('sine', f * 1.02, t, 0.05, d, {
+          gain: g,
+          slideTo: f,
+          slideTime: 0.08,
+          attack: 0.003,
+          release: 1.3,
+        });
+        osc('sine', f * 1.5, t, 0.03, d, { gain: g * 0.35, attack: 0.003, release: 0.6 });
+        osc('triangle', f * 2, t, 0.02, d, { gain: g * 0.12, attack: 0.002, release: 0.35 });
+        noise(t, 0.04, d, { gain: g * 0.35, type: 'lowpass', freq: 900, release: 0.12 });
+      },
+      // big war drum
+      taiko(t, d, g = 0.5) {
+        osc('sine', 95, t, 0.06, d, {
+          gain: g,
+          slideTo: 46,
+          slideTime: 0.14,
+          attack: 0.002,
+          release: 0.9,
+        });
+        noise(t, 0.05, d, { gain: g * 0.5, type: 'lowpass', freq: 500, release: 0.2 });
+        noise(t, 0.012, d, { gain: g * 0.25, freq: 1800, q: 1, release: 0.02 });
+      },
+      // reverse cymbal rising into the next downbeat
+      swell(t, dur, d, g = 0.06) {
+        noise(t, dur, d, { gain: g, type: 'highpass', freq: 3000, attack: dur, release: 0.15 });
       },
       tom(t, f, d, g = 0.4) {
         osc('sine', f * 1.6, t, 0.2, d, {
@@ -548,20 +590,80 @@ export class AudioSystem {
           });
         });
       },
-      pad(notes, t, dur, d, o = {}) {
+      // String section: three detuned saws per note, gentle vibrato arriving after the attack.
+      strings(notes, t, dur, d, o = {}) {
         const g = o.gain ?? 0.04;
+        const rel = o.release ?? 0.6;
+        const bus = ctx.createGain();
+        env(bus.gain, t, 1, o.attack ?? 0.25, dur, rel);
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = o.cutoff ?? 2400;
+        f.Q.value = 0.5;
+        f.connect(bus).connect(d);
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 5.2 + Math.random() * 0.6;
+        const lg = ctx.createGain();
+        lg.gain.setValueAtTime(0, t);
+        lg.gain.linearRampToValueAtTime(o.vibrato ?? 7, t + 0.4);
+        lfo.connect(lg);
+        lfo.start(t);
+        lfo.stop(t + dur + rel + 0.1);
         notes.forEach((n) => {
-          for (const dt of [-1, 1]) {
-            osc('sawtooth', midi(n), t, dur, d, {
-              gain: (g / notes.length) * 2,
-              cutoff: o.cutoff || 1200,
-              attack: o.attack || 0.5,
-              release: 0.8,
-              detune: dt * (o.detune || 9),
-              q: 0.5,
-            });
+          for (const dt of [-11, 0, 12]) {
+            const oc = ctx.createOscillator();
+            oc.type = 'sawtooth';
+            oc.frequency.value = midi(n);
+            oc.detune.value = dt;
+            lg.connect(oc.detune);
+            const gg = ctx.createGain();
+            gg.gain.value = (g / notes.length) * 1.6;
+            oc.connect(gg).connect(f);
+            oc.start(t);
+            oc.stop(t + dur + rel + 0.1);
           }
         });
+      },
+      // short bowed note (spiccato)
+      spiccato(f, t, d, o = {}) {
+        for (const dt of [-7, 7]) {
+          osc('sawtooth', f, t, 0.07, d, {
+            gain: o.gain ?? 0.06,
+            cutoff: o.cutoff ?? 2600,
+            cutoffTo: (o.cutoff ?? 2600) * 0.35,
+            attack: 0.01,
+            release: 0.12,
+            detune: dt,
+          });
+        }
+      },
+      // french horn: warm swelling tone for melodies
+      horn(n, t, dur, d, g = 0.06) {
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.Q.value = 0.8;
+        f.frequency.setValueAtTime(420, t);
+        f.frequency.exponentialRampToValueAtTime(1700, t + Math.min(0.25, dur * 0.5));
+        const out = ctx.createGain();
+        env(out.gain, t, g, 0.09, dur, 0.35);
+        f.connect(out).connect(d);
+        for (const dt of [-5, 5]) {
+          const oc = ctx.createOscillator();
+          oc.type = 'sawtooth';
+          oc.frequency.value = midi(n);
+          oc.detune.value = dt;
+          oc.connect(f);
+          oc.start(t);
+          oc.stop(t + dur + 0.45);
+        }
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.value = midi(n);
+        const sg = ctx.createGain();
+        sg.gain.value = 0.6;
+        sub.connect(sg).connect(f);
+        sub.start(t);
+        sub.stop(t + dur + 0.45);
       },
       drone(n, t, dur, d, o = {}) {
         const f = midi(n);
@@ -653,18 +755,6 @@ export class AudioSystem {
             });
           }
         });
-      },
-      stab(notes, t, dur, d, g = 0.04) {
-        notes.forEach((n, i) =>
-          osc('sawtooth', midi(n), t, dur, d, {
-            gain: g,
-            cutoff: 2200,
-            cutoffTo: 300,
-            attack: 0.005,
-            release: 0.1,
-            detune: (i % 2 ? 1 : -1) * 18,
-          })
-        );
       },
       screech(f, t, dur, d, g = 0.03) {
         for (const dt of [-30, 0, 35]) {

@@ -217,7 +217,7 @@ export function createBeams(items, color = 0xffd36a) {
         float streak = 0.55 + 0.45 * sin(vUv.x * 60.0 + uTime * 1.6 + y * 8.0) * sin(vUv.x * 23.0 - uTime * 0.9);
         float a = pow(max(1.0 - y, 0.0), 1.6) * smoothstep(0.0, 0.05, y) * streak;
         a *= 0.85 + 0.15 * sin(uTime * 2.0 + vP.x * 0.3);
-        gl_FragColor = vec4(uColor * a * 2.2, a);
+        gl_FragColor = vec4(uColor * a * 1.5, a);
         #include <colorspace_fragment>
       }`,
     transparent: true,

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { TrackCore } from './Centerline.js';
 import { createSky } from './sky.js';
+import { buildErdtree } from './erdtree.js';
 import { buildTerrain } from './build/terrain.js';
 import { buildRoad } from './build/road.js';
 import { makeNoise, mulberry32 } from './util.js';
@@ -18,10 +19,17 @@ export class Track extends TrackCore {
     this._disposers = [];
     this._uTime = { value: 0 };
 
-    this.sky = createSky(layout, scene, layout.seed ?? 1);
+    let roadY = 0;
+    for (let i = 0; i < this.N; i++) roadY += this.py[i];
+    this.sky = createSky(layout, scene, roadY / this.N);
     this.terrain = buildTerrain(this, this.root);
     this.roadMesh = buildRoad(this, this.root);
     this._updaters.push(this.sky.update, this.terrain.update, this.roadMesh.update);
+    if (layout.sky.tree) {
+      this.erdtree = buildErdtree(this, this.root, layout.sky.tree);
+      this._updaters.push(this.erdtree.update);
+      this._disposers.push(this.erdtree);
+    }
 
     const ctx = {
       core: this,

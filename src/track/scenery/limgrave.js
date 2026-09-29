@@ -1,16 +1,8 @@
 // Limgrave: rolling golden-green hills, oak groves, ruins, Church of Elleh, Stormveil on the horizon.
 import * as THREE from 'three';
-import { instanced, propMaterial, addSway, scatter, roadside, part, mergeParts } from './common.js';
-import {
-  oakGeo,
-  pineGeo,
-  rockGeo,
-  pillarGeo,
-  archGeo,
-  churchGeo,
-  towerGeo,
-  wallSegGeo,
-} from './props.js';
+import { instanced, propMaterial, addSway, scatter, roadside } from './common.js';
+import { plantTrees, grassField } from './flora.js';
+import { pineGeo, rockGeo, pillarGeo, archGeo, churchGeo, towerGeo, wallSegGeo } from './props.js';
 import { graceSites, mistPuffs, ambient, lampGlows } from './kit.js';
 import { KERB } from '../Centerline.js';
 
@@ -23,21 +15,46 @@ export function buildLimgrave(ctx) {
   const { core, rng, uTime, noise } = ctx;
   const grove = (p) => noise.fbm(p.x * 0.012, p.z * 0.012, 3) > 0.47;
 
-  // oaks in groves
-  const oakGeoM = oakGeo();
-  const oakMat = addSway(propMaterial(), uTime, 0.45, 11);
-  const oaks = scatter(core, rng, { count: 460, min: 6, max: 190, radius: 4, filter: grove }).map(
-    (p) => ({
-      x: p.x,
-      y: p.y - 0.2,
-      z: p.z,
-      ry: rng() * 6.28,
-      s: 0.8 + rng() * 0.9,
-      color: tint(rng, 1, 0.35, 1),
-    })
+  // broadleaf groves: mostly green oaks, some golden-leaved trees like those near the Erdtree
+  const oakSpots = scatter(core, rng, {
+    count: 420,
+    min: 6,
+    max: 190,
+    radius: 4,
+    filter: grove,
+  }).map((p) => ({
+    x: p.x,
+    y: p.y - 0.2,
+    z: p.z,
+    ry: rng() * 6.28,
+    s: 0.8 + rng() * 0.8,
+    color: tint(rng, 1, 0.3, 1),
+  }));
+  const golden = oakSpots.filter((_, k) => k % 10 < 3);
+  plantTrees(
+    ctx,
+    {
+      height: 6.5,
+      spread: 4.6,
+      bark: 0x4f3a28,
+      leaves: [0x6f8f3a, 0x8aa844, 0xa6aa4a],
+      cards: 80,
+      seed: 3,
+    },
+    oakSpots.filter((_, k) => k % 10 >= 3)
   );
-  ctx.add(instanced(oakGeoM, oakMat, oaks));
-  ctx.own(oakGeoM);
+  plantTrees(
+    ctx,
+    {
+      height: 7,
+      spread: 5,
+      bark: 0x5a4028,
+      leaves: [0xd9b042, 0xe8c85a, 0xc89a30],
+      cards: 80,
+      seed: 7,
+    },
+    golden
+  );
 
   // pines on the higher ground
   const pineG = pineGeo();
@@ -60,8 +77,8 @@ export function buildLimgrave(ctx) {
   ctx.own(pineG);
 
   // rocks + cliffs
-  const rockG = rockGeo(0x8d8576);
-  const rockMat = propMaterial({ flatShading: true });
+  const rockG = rockGeo(0x8d8576, 1, 0x6a7a40);
+  const rockMat = propMaterial();
   const rocks = [
     ...scatter(core, rng, { count: 240, min: 4, max: 90, radius: 4.6 }).map((p) => ({
       x: p.x,
@@ -83,29 +100,17 @@ export function buildLimgrave(ctx) {
   ctx.add(instanced(rockG, rockMat, rocks));
   ctx.own(rockG);
 
-  // golden grass tufts
-  const tuftG = mergeParts([
-    part(new THREE.ConeGeometry(0.22, 1.1, 4), 0xe0b84a, { pos: [0, 0.55, 0], shade: 0.6 }),
-    part(new THREE.ConeGeometry(0.2, 0.9, 4), 0xf0cf6a, {
-      pos: [0.25, 0.45, 0.1],
-      rot: [0.2, 0, -0.3],
-      shade: 0.6,
-    }),
-    part(new THREE.ConeGeometry(0.2, 0.9, 4), 0xc9a03a, {
-      pos: [-0.2, 0.45, -0.1],
-      rot: [-0.2, 0, 0.3],
-      shade: 0.6,
-    }),
-  ]);
-  const tufts = scatter(core, rng, { count: 1400, min: 2.5, max: 45 }).map((p) => ({
-    x: p.x,
-    y: p.y - 0.05,
-    z: p.z,
-    ry: rng() * 6.28,
-    s: 0.8 + rng() * 1.2,
-  }));
-  ctx.add(instanced(tuftG, addSway(propMaterial(), uTime, 0.15, 1.2), tufts));
-  ctx.own(tuftG);
+  // grass verges with pale flowers
+  grassField(ctx, {
+    count: 14000,
+    reach: 38,
+    variants: [
+      { base: 0x2f4a1c, tip: 0x9fb04a, height: 0.8 },
+      { base: 0x3a5220, tip: 0xd6c060, height: 1.0 },
+      { base: 0x2a4418, tip: 0x7a9a3a, height: 0.6 },
+    ],
+    flowers: { petal: 0xf2ecd8, heart: 0xe8c040 },
+  });
 
   // ruins: broken pillars, arches and wall stumps beside the road
   const ruinMat = propMaterial({ flatShading: true });

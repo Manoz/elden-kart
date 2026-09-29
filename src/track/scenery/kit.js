@@ -16,7 +16,7 @@ import {
 export function graceSites(
   ctx,
   ts,
-  { color = 0xffd36a, height = 70, offset = 9, motes = 0xffe8a0 } = {}
+  { color = 0xffd36a, height = 45, offset = 9, motes = 0xffe8a0 } = {}
 ) {
   const { core } = ctx;
   const beams = [];
@@ -27,9 +27,9 @@ export function graceSites(
     const side = k % 2 ? -1 : 1;
     const p = roadside(core, t, side * (core.layout.halfWidth + KERB + offset));
     spots.push(p);
-    beams.push({ x: p.x, y: p.y, z: p.z, height, radius: 1.5 });
+    beams.push({ x: p.x, y: p.y, z: p.z, height, radius: 0.55 });
     halos.push({ x: p.x, y: p.y + 1.5, z: p.z, size: 5, color, alpha: 0.5, phase: k * 0.31 });
-    halos.push({ x: p.x, y: p.y + 14, z: p.z, size: 8, color, alpha: 0.1, phase: k * 0.17 });
+    halos.push({ x: p.x, y: p.y + 10, z: p.z, size: 6, color, alpha: 0.06, phase: k * 0.17 });
     rings.push({ x: p.x, y: p.y + 0.15, z: p.z, s: 1 });
   });
   if (!spots.length) return spots;

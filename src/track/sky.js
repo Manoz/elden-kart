@@ -1,7 +1,7 @@
 // Sky dome, distant ridges, giant tree billboard, fog and lights.
 import * as THREE from 'three';
 import { makeNoise } from './util.js';
-import { makeCloudTexture, makeTreeTexture } from './textures.js';
+import { fogDensityFor } from './atmosphere.js';
 
 const R = 1000;
 
@@ -65,12 +65,30 @@ void main() {
 const DOME_FRAG = /* glsl */ `
 uniform vec3 uZenith, uMid, uHorizon, uGround, uSunDir, uSunColor, uMoonDir, uMoonColor, uCloudLit, uCloudDark, uBand;
 uniform float uSunSize, uMoonSize, uStars, uTime, uCloudAmt, uCloudSpeed, uBandAmt;
-uniform sampler2D uClouds;
 varying vec3 vDir;
 float hash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
   p *= 17.0;
   return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float h21(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    s += a * vnoise(p);
+    p = mat2(1.6, 1.2, -1.2, 1.6) * p + 3.1;
+    a *= 0.5;
+  }
+  return s;
 }
 void main() {
   vec3 d = normalize(vDir);
@@ -99,14 +117,20 @@ void main() {
     float band = sin(a * 3.0 + uTime * 0.05 + sin(a * 7.0 + uTime * 0.13) * 0.8) * 0.5 + 0.5;
     col += uBand * band * uBandAmt * smoothstep(0.05, 0.3, h) * smoothstep(0.85, 0.35, h);
   }
-  float ch = max(h, 0.0);
-  vec2 uv = d.xz / (ch + 0.3);
-  uv = uv * 0.32 + vec2(uTime * uCloudSpeed, 0.0);
-  float c1 = texture2D(uClouds, uv * 0.5).r;
-  float c2 = texture2D(uClouds, uv * 1.3 + 0.37).r;
-  float cl = smoothstep(0.3, 0.85, (c1 * 0.75 + c2 * 0.55) * uCloudAmt) * smoothstep(0.0, 0.16, h);
-  vec3 cc = mix(uCloudDark, uCloudLit, clamp(0.35 + pow(sd, 3.0) * 0.9 + (1.0 - h) * 0.2, 0.0, 1.0));
-  col = mix(col, cc, cl * 0.9);
+  // Procedural cumulus on a plane above the camera, self-shadowed away from the sun.
+  if (h > 0.0 && uCloudAmt > 0.0) {
+    vec2 wind = vec2(uTime * uCloudSpeed * 6.0, uTime * uCloudSpeed * 2.0);
+    vec2 uv = d.xz / (h + 0.08) * 0.55 + wind;
+    float c = fbm(uv);
+    float cover = smoothstep(0.66 - uCloudAmt * 0.24, 0.9 - uCloudAmt * 0.18, c);
+    float c2 = fbm(uv + uSunDir.xz * 0.18);
+    float lit = clamp(0.55 + (c - c2) * 3.2, 0.0, 1.0);
+    vec3 cc = mix(uCloudDark, uCloudLit, lit);
+    cc += uSunColor * pow(sd, 5.0) * (1.0 - cover) * 0.9;
+    // distant clouds dissolve into the horizon haze
+    cc = mix(cc, uHorizon, (1.0 - smoothstep(0.0, 0.35, h)) * 0.55);
+    col = mix(col, cc, cover * smoothstep(0.0, 0.1, h) * 0.95);
+  }
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -141,17 +165,16 @@ function ridgeRing(layer, fogColor) {
   return g;
 }
 
-export function createSky(cfg, scene, seed = 1) {
+// baseHeight: typical road height, so the height fog feels the same on high and low tracks.
+export function createSky(cfg, scene, baseHeight = 0) {
   const group = new THREE.Group();
   group.name = 'sky';
   const disposables = [];
   const fogColor = new THREE.Color(cfg.fog.color);
-  scene.fog = new THREE.FogExp2(fogColor.getHex(), cfg.fog.density);
+  scene.fog = new THREE.FogExp2(fogColor.getHex(), fogDensityFor(cfg.fog.density, baseHeight));
   scene.background = fogColor.clone();
 
   const S = cfg.sky;
-  const clouds = makeCloudTexture(seed);
-  disposables.push(clouds);
   const sunDir = new THREE.Vector3(...S.sunDir).normalize();
   const moonDir = new THREE.Vector3(...(S.moonDir || [0, -1, 0])).normalize();
   const u = {
@@ -173,7 +196,6 @@ export function createSky(cfg, scene, seed = 1) {
     uCloudDark: { value: new THREE.Color(S.cloudDark ?? 0x888888) },
     uBand: { value: new THREE.Color(S.band ?? 0x000000) },
     uBandAmt: { value: S.band ? (S.bandAmt ?? 0.3) : 0 },
-    uClouds: { value: clouds },
   };
   const domeMat = new THREE.ShaderMaterial({
     uniforms: u,
@@ -210,31 +232,6 @@ export function createSky(cfg, scene, seed = 1) {
     disposables.push(geo, mat);
   });
 
-  // giant tree billboard
-  let tree = null;
-  if (S.tree) {
-    const T = S.tree;
-    const tex = makeTreeTexture(T.variant || 'gold', seed);
-    const mat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false,
-      opacity: T.opacity ?? 1,
-    });
-    mat.color.setScalar(T.bright ?? 1.25);
-    const size = T.size ?? 700;
-    tree = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-    const az = T.az ?? 0;
-    const dist = 850;
-    tree.position.set(Math.sin(az) * dist, size / 2 - (T.sink ?? 40), -Math.cos(az) * dist);
-    tree.lookAt(0, tree.position.y, 0);
-    tree.renderOrder = -800;
-    tree.frustumCulled = false;
-    group.add(tree);
-    disposables.push(tree.geometry, mat, tex);
-  }
   scene.add(group);
 
   const envTex = makeEnvTexture(S, sunDir, S.ground ?? cfg.fog.color);
@@ -301,8 +298,6 @@ export function createSky(cfg, scene, seed = 1) {
     },
     update(dt, time) {
       u.uTime.value = time;
-      if (tree)
-        tree.material.opacity = (S.tree.opacity ?? 1) * (0.94 + 0.06 * Math.sin(time * 0.8));
     },
     dispose() {
       scene.remove(group, hemi, sun, sun.target);

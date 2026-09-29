@@ -16,6 +16,8 @@ import { UI } from '../ui/UI.js';
 import { AudioSystem } from '../audio/Audio.js';
 
 const MAX_STEP = 1 / 60;
+const _camDir = new THREE.Vector3();
+const _toKart = new THREE.Vector3();
 const PLAYER_GRID_SLOT = 5;
 const KART_COUNT = 8;
 const RESULTS_DELAY = 4;
@@ -131,15 +133,19 @@ export class Game {
     await nextFrame();
     ui.showLoading(0.3);
     await nextFrame();
-    this.world = this._buildWorld('limgrave');
-    ui.showLoading(0.85);
-    await nextFrame();
-    this.renderer.compile(this.world.scene, this.camera);
+    const params = new URLSearchParams(location.search);
+    const quick = params.get('track') && params.get('char');
+    // The menu backdrop is only needed when the menus show; a quick start goes straight to its race.
+    if (!quick) {
+      this.world = this._buildWorld('limgrave');
+      ui.showLoading(0.85);
+      await nextFrame();
+      this.renderer.compile(this.world.scene, this.camera);
+    }
     ui.showLoading(1);
     await nextFrame();
 
-    const params = new URLSearchParams(location.search);
-    if (params.get('track') && params.get('char')) {
+    if (quick) {
       const cls = CLASSES.find((c) => c.id === params.get('class')) || CLASSES[1];
       await this._quickRace({ trackId: params.get('track'), characterId: params.get('char') }, cls);
     } else {
@@ -572,6 +578,19 @@ export class Game {
       if (!this.paused) guard('fx update', () => r.fx?.update(dt));
       r.chase.lookBehind = this.input.lookBehind;
       r.chase.update(this.paused ? 0 : dt, r.player);
+      // A rival right at the camera, or between the camera and the player, would fill the screen:
+      // hide it while it is there.
+      const cam = this.camera.position;
+      const toPlayer = r.player.pos.distanceTo(cam);
+      this.camera.getWorldDirection(_camDir);
+      for (const k of r.karts) {
+        if (k === r.player) continue;
+        _toKart.subVectors(k.pos, cam);
+        _toKart.y += 1.2;
+        const d = _toKart.length();
+        const inFront = d > 0 && _toKart.dot(_camDir) / d > 0.75;
+        k.mesh.visible = d > 5.5 && !(inFront && d < toPlayer - 1);
+      }
       this._updateHud(r);
       this._updateAudio(r);
       this._updateResults(r, dt);

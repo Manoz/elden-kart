@@ -10,6 +10,7 @@ import {
   wallSegGeo,
   pillarGeo,
 } from './props.js';
+import { grassField } from './flora.js';
 import { graceSites, mistPuffs, ambient, lampGlows } from './kit.js';
 import { createBillboards } from '../fx.js';
 import { KERB } from '../Centerline.js';
@@ -45,9 +46,20 @@ export function buildCaelid(ctx) {
   ctx.add(instanced(dead, propMaterial(), deadTrees));
   ctx.own(dead);
 
+  // withered red grass and scarlet rot flowers along the verges
+  grassField(ctx, {
+    count: 9000,
+    reach: 34,
+    variants: [
+      { base: 0x3a1410, tip: 0xc0502a, height: 0.7 },
+      { base: 0x4a1c12, tip: 0xd8804a, height: 0.9 },
+    ],
+    flowers: { petal: 0xe8281a, heart: 0xffb040, stem: 0x3a1a10 },
+  });
+
   // rocks and mesas
-  const rockG = rockGeo(0x7a4a3a);
-  const rockMat = propMaterial({ flatShading: true });
+  const rockG = rockGeo(0x6a3c30, 1, 0x9a5a3a);
+  const rockMat = propMaterial();
   const rocks = [
     ...scatter(core, rng, {
       count: 300,

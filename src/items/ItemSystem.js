@@ -418,10 +418,9 @@ export class ItemSystem {
       u.cube.rotation.x += dt * 0.8;
       u.cage.rotation.y -= dt * 0.9;
       u.cage.rotation.z += dt * 0.6;
-      u.core.rotation.y += dt * 3;
-      u.core.rotation.x -= dt * 2;
+      u.core.rotation.y += dt * 2.2;
       m.position.y = b.pos.y + BOX_LIFT + Math.sin(t * 2 + b.phase) * 0.22;
-      u.halo.scale.setScalar(5.0 + Math.sin(t * 3 + b.phase) * 0.7);
+      u.halo.scale.setScalar(3.2 + Math.sin(t * 3 + b.phase) * 0.4);
 
       for (let k = 0; k < this.karts.length; k++) {
         const kart = this.karts[k];

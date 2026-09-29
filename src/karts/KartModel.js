@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Procedural Elden Ring karts. Forward is -Z, origin on the ground under the kart centre.
 // Shared geometries, materials and textures are cached at module level; each model owns only
@@ -211,6 +212,24 @@ const tor = (r, t, rs = 10, ts = 28, arc = Math.PI * 2) =>
   cachedGeo(`tor${r},${t},${rs},${ts},${arc}`, () => new THREE.TorusGeometry(r, t, rs, ts, arc));
 const capsule = (r, l) => cachedGeo(`cap${r},${l}`, () => new THREE.CapsuleGeometry(r, l, 4, 12));
 const octa = (r) => cachedGeo(`oct${r}`, () => new THREE.OctahedronGeometry(r, 0));
+
+// Reverses triangle winding of a non-indexed geometry (after a mirroring transform).
+function flipWinding(g) {
+  for (const attr of Object.values(g.attributes)) {
+    const a = attr.array;
+    const n = attr.itemSize;
+    for (let t = 0; t < attr.count; t += 3) {
+      for (let c = 0; c < n; c++) {
+        const i1 = (t + 1) * n + c;
+        const i2 = (t + 2) * n + c;
+        const tmp = a[i1];
+        a[i1] = a[i2];
+        a[i2] = tmp;
+      }
+    }
+    attr.needsUpdate = true;
+  }
+}
 
 // Orient a unit-height Y cylinder so it spans a -> b.
 function setLimb(mesh, a, b, radiusScale = 1) {
@@ -2140,10 +2159,112 @@ export class KartModel {
 
     (CHARACTER_BUILDERS[character.id] ?? CHARACTER_BUILDERS.tarnished)(this, character);
     this._buildEffects();
+    this._mergeStatic();
     this.group.traverse((o) => {
       if (o.isMesh) o.frustumCulled = true;
     });
     this.update(0, null);
+  }
+
+  // Merges every mesh the animation code never moves into one mesh per parent and material,
+  // so a kart costs a few dozen draw calls instead of a few hundred.
+  _mergeStatic() {
+    const meshes = [];
+    this.group.traverse((o) => {
+      if (o.isMesh && !o.userData.ribbon) meshes.push(o);
+    });
+    const snap = (m) => [
+      ...m.position.toArray(),
+      ...m.quaternion.toArray(),
+      ...m.scale.toArray(),
+      m.visible ? 1 : 0,
+    ];
+    const before = meshes.map(snap);
+    const dynamic = new Set();
+    const saved = {
+      time: this.time,
+      steer: this.steer,
+      pitch: this.pitch,
+      prevSpeed: this.prevSpeed,
+    };
+    const probe = {
+      speed: 0,
+      inputs: { steer: 0 },
+      drift: { active: false, dir: 0, level: 0 },
+      boostTimer: 0,
+      boostPower: 1,
+      spinTimer: 0,
+      invincibleTimer: 0,
+      shielded: false,
+      airborne: false,
+    };
+    for (let i = 0; i < 48; i++) {
+      probe.speed = (i % 12) * 5;
+      probe.inputs.steer = Math.sin(i * 0.7);
+      probe.drift.active = i % 8 < 4;
+      probe.drift.dir = i % 16 < 8 ? 1 : -1;
+      probe.boostTimer = i % 6 < 3 ? 1 : 0;
+      probe.boostPower = i % 12 < 6 ? 1 : 1.6;
+      probe.spinTimer = i >= 20 && i < 26 ? 1 : 0;
+      probe.invincibleTimer = i >= 30 && i < 36 ? (i % 2 ? 3 : 0.5) : 0;
+      probe.shielded = i >= 36 && i < 42;
+      probe.airborne = i % 10 === 5;
+      this.update(1 / 30, probe);
+      meshes.forEach((m, k) => {
+        if (dynamic.has(m)) return;
+        const s = snap(m);
+        if (s.some((v, j) => Math.abs(v - before[k][j]) > 1e-6)) dynamic.add(m);
+      });
+    }
+    Object.assign(this, saved, { spinAngle: 0, driftYaw: 0, lean: 0, driverLean: 0 });
+    this.spinNode.rotation.y = 0;
+    this.spinNode.position.y = 0;
+
+    const groups = new Map();
+    for (const m of meshes) {
+      if (dynamic.has(m) || !m.parent) continue;
+      const key = m.parent.uuid + '|' + m.material.uuid + '|' + m.castShadow + '|' + m.renderOrder;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(m);
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const parent = list[0].parent;
+      const geos = list.map((m) => {
+        m.updateMatrix();
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+        for (const name of Object.keys(g.attributes)) {
+          if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+        }
+        if (!g.attributes.uv) {
+          g.setAttribute(
+            'uv',
+            new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)
+          );
+        }
+        if (!g.attributes.normal) g.computeVertexNormals();
+        g.applyMatrix4(m.matrix);
+        if (m.matrix.determinant() < 0) flipWinding(g);
+        return g;
+      });
+      const merged = mergeGeometries(geos, false);
+      geos.forEach((g) => g.dispose());
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, list[0].material);
+      mesh.castShadow = list[0].castShadow;
+      mesh.receiveShadow = list[0].receiveShadow;
+      mesh.renderOrder = list[0].renderOrder;
+      for (const m of list) parent.remove(m);
+      parent.add(mesh);
+      this.owned.push(merged);
+    }
+    // Details smaller than a few shadow-map texels cast no visible shadow; skip them in the shadow pass.
+    this.group.traverse((o) => {
+      if (!o.isMesh || !o.castShadow) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      const s = Math.max(o.scale.x, o.scale.y, o.scale.z);
+      if (o.geometry.boundingSphere.radius * s < 0.09) o.castShadow = false;
+    });
   }
 
   _buildEffects() {

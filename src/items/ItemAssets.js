@@ -14,44 +14,179 @@ function canvasTex(size, draw, srgb = true) {
   return t;
 }
 
-function boxTransform(w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  const m = new THREE.Matrix4().compose(
-    new THREE.Vector3(x, y, z),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
-    new THREE.Vector3(1, 1, 1)
-  );
-  g.applyMatrix4(m);
+const UP = new THREE.Vector3(0, 1, 0);
+
+// Tapered cylinder between two points.
+function limbBetween(a, b, r0, r1, seg = 8) {
+  const A = new THREE.Vector3(...a);
+  const B = new THREE.Vector3(...b);
+  const d = new THREE.Vector3().subVectors(B, A);
+  const len = d.length();
+  const g = new THREE.CylinderGeometry(r1, r0, len, seg, 1);
+  g.translate(0, len / 2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
+  g.translate(A.x, A.y, A.z);
   return g;
 }
 
+function capsuleAlong(a, b, r) {
+  const A = new THREE.Vector3(...a);
+  const B = new THREE.Vector3(...b);
+  const d = new THREE.Vector3().subVectors(B, A);
+  const g = new THREE.CapsuleGeometry(r, d.length(), 6, 12);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.clone().normalize()));
+  g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  return g;
+}
+
+const merged = (list) =>
+  mergeGeometries(
+    list.map((g) => {
+      const n = g.index ? g.toNonIndexed() : g;
+      for (const k of Object.keys(n.attributes))
+        if (k !== 'position' && k !== 'normal') n.deleteAttribute(k);
+      return n;
+    })
+  );
+
+// Galloping spectral steed with Torrent's curled horns; forward is -Z.
 function horseGeometry() {
-  return mergeGeometries([
-    boxTransform(0.7, 0.8, 2.0, 0, 1.3, 0),
-    boxTransform(0.4, 1.1, 0.5, 0, 1.9, -1.05, 0.5, 0, 0),
-    boxTransform(0.35, 0.4, 0.9, 0, 2.4, -1.5, -0.35, 0, 0),
-    boxTransform(0.18, 0.9, 0.18, 0.24, 0.5, -0.8),
-    boxTransform(0.18, 0.9, 0.18, -0.24, 0.5, -0.8),
-    boxTransform(0.18, 0.9, 0.18, 0.24, 0.5, 0.8),
-    boxTransform(0.18, 0.9, 0.18, -0.24, 0.5, 0.8),
-    boxTransform(0.15, 0.9, 0.3, 0, 1.4, 1.2, -0.6, 0, 0),
-    boxTransform(0.5, 0.9, 0.5, 0, 2.0, 0.1),
+  const head = new THREE.Shape(
+    [
+      [0, 0],
+      [0.1, 0.3],
+      [0.08, 0.55],
+      [-0.05, 0.62],
+      [-0.2, 0.5],
+      [-0.55, 0.28],
+      [-0.62, 0.12],
+      [-0.55, 0.02],
+      [-0.25, 0.02],
+    ].map(([x, y]) => new THREE.Vector2(x, y))
+  );
+  const headGeo = new THREE.ExtrudeGeometry(head, {
+    depth: 0.26,
+    bevelEnabled: true,
+    bevelSize: 0.05,
+    bevelThickness: 0.05,
+    bevelSegments: 2,
+  });
+  headGeo.translate(0, 0, -0.13);
+  headGeo.rotateY(Math.PI / 2);
+  headGeo.translate(0, 2.05, -1.2);
+  const list = [
+    capsuleAlong([0, 1.45, -0.55], [0, 1.4, 0.6], 0.42),
+    capsuleAlong([0, 1.55, -0.7], [0, 2.2, -1.1], 0.2),
+    headGeo,
+    // legs mid-gallop: fore legs reaching, hind legs pushing
+    limbBetween([0.22, 1.2, -0.75], [0.26, 0.7, -1.2], 0.12, 0.08),
+    limbBetween([0.26, 0.7, -1.2], [0.24, 0.25, -1.05], 0.08, 0.06),
+    limbBetween([-0.22, 1.2, -0.75], [-0.24, 0.62, -0.55], 0.12, 0.08),
+    limbBetween([-0.24, 0.62, -0.55], [-0.24, 0.05, -0.75], 0.08, 0.06),
+    limbBetween([0.22, 1.25, 0.75], [0.26, 0.7, 1.05], 0.14, 0.09),
+    limbBetween([0.26, 0.7, 1.05], [0.24, 0.1, 1.35], 0.09, 0.06),
+    limbBetween([-0.22, 1.25, 0.75], [-0.24, 0.65, 0.55], 0.14, 0.09),
+    limbBetween([-0.24, 0.65, 0.55], [-0.24, 0.05, 0.75], 0.09, 0.06),
+    // flowing tail and mane
+    limbBetween([0, 1.55, 0.95], [0, 1.1, 1.8], 0.14, 0.02),
+  ];
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    list.push(
+      limbBetween(
+        [0, 1.75 + t * 0.55, -0.72 - t * 0.4],
+        [0, 1.95 + t * 0.55, -0.45 - t * 0.4],
+        0.07,
+        0.01,
+        5
+      )
+    );
+  }
+  // ibex horns sweeping back from the brow
+  for (const s of [-1, 1]) {
+    const horn = new THREE.TorusGeometry(0.22, 0.045, 6, 12, Math.PI * 0.9);
+    horn.rotateY(Math.PI / 2);
+    horn.translate(s * 0.1, 2.62, -1.05);
+    list.push(horn);
+  }
+  return merged(list);
+}
+
+// Lean spectral hound; forward is -Z.
+function houndGeometry() {
+  return merged([
+    capsuleAlong([0, 0.8, -0.45], [0, 0.72, 0.55], 0.28),
+    new THREE.SphereGeometry(0.24, 12, 8).translate(0, 1.0, -0.8),
+    limbBetween([0, 0.98, -0.95], [0, 0.9, -1.4], 0.12, 0.05),
+    limbBetween([0.1, 1.15, -0.8], [0.13, 1.42, -0.72], 0.06, 0.01, 5),
+    limbBetween([-0.1, 1.15, -0.8], [-0.13, 1.42, -0.72], 0.06, 0.01, 5),
+    limbBetween([0.16, 0.65, -0.5], [0.18, 0.05, -0.85], 0.08, 0.04),
+    limbBetween([-0.16, 0.65, -0.5], [-0.18, 0.05, -0.3], 0.08, 0.04),
+    limbBetween([0.16, 0.65, 0.5], [0.18, 0.05, 0.85], 0.09, 0.04),
+    limbBetween([-0.16, 0.65, 0.5], [-0.18, 0.05, 0.25], 0.09, 0.04),
+    limbBetween([0, 0.85, 0.75], [0, 0.6, 1.4], 0.07, 0.01),
   ]);
 }
 
-function houndGeometry() {
-  return mergeGeometries([
-    boxTransform(0.7, 0.55, 1.5, 0, 0.75, 0),
-    boxTransform(0.4, 0.4, 0.55, 0, 0.95, -0.95),
-    boxTransform(0.22, 0.2, 0.4, 0, 0.85, -1.35),
-    boxTransform(0.12, 0.5, 0.12, 0.25, 0.3, -0.5),
-    boxTransform(0.12, 0.5, 0.12, -0.25, 0.3, -0.5),
-    boxTransform(0.12, 0.5, 0.12, 0.25, 0.3, 0.5),
-    boxTransform(0.12, 0.5, 0.12, -0.25, 0.3, 0.5),
-    boxTransform(0.1, 0.1, 0.8, 0, 1.0, 1.0, 0.5, 0, 0),
-    boxTransform(0.1, 0.25, 0.1, 0.12, 1.25, -0.9),
-    boxTransform(0.1, 0.25, 0.1, -0.12, 1.25, -0.9),
-  ]);
+// Rim-lit additive material for spirit summons. `opacity` drives the fade like a regular material.
+function spectralMaterial(color) {
+  const uOpacity = { value: 1 };
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uColor: { value: color }, uOpacity },
+    vertexShader: /* glsl */ `
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0);
+        gl_FragColor = vec4(uColor * (0.18 + rim * 1.3), 1.0) * uOpacity;
+      }`,
+  });
+  Object.defineProperty(mat, 'opacity', {
+    get: () => uOpacity.value,
+    set: (v) => {
+      uOpacity.value = v;
+    },
+  });
+  return mat;
+}
+
+// The Elden Ring emblem: interlocking arcs around a vertical stroke, in glowing gold.
+function drawEldenRing(g, s) {
+  g.clearRect(0, 0, s, s);
+  g.strokeStyle = '#ffe7a0';
+  g.lineCap = 'round';
+  g.shadowColor = '#ffc850';
+  g.shadowBlur = s * 0.06;
+  const c = s / 2;
+  const ring = (x, y, r, a0, a1, w) => {
+    g.lineWidth = w;
+    g.beginPath();
+    g.arc(x, y, r, a0, a1);
+    g.stroke();
+  };
+  ring(c, c * 0.95, s * 0.3, 0, TAU, s * 0.03);
+  ring(c, c * 0.62, s * 0.2, Math.PI * 0.1, Math.PI * 0.9, s * 0.022);
+  ring(c - s * 0.13, c * 1.1, s * 0.19, Math.PI * 0.9, Math.PI * 2.2, s * 0.02);
+  ring(c + s * 0.13, c * 1.1, s * 0.19, Math.PI * 0.8, Math.PI * 2.1, s * 0.02);
+  g.lineWidth = s * 0.028;
+  g.beginPath();
+  g.moveTo(c, s * 0.08);
+  g.lineTo(c, s * 0.94);
+  g.stroke();
 }
 
 function lathe(points, segs = 14) {
@@ -85,40 +220,7 @@ export class ItemAssets {
       )
     );
 
-    this.boxTex = own(
-      canvasTex(256, (g, s) => {
-        const bg = g.createLinearGradient(0, 0, s, s);
-        bg.addColorStop(0, '#5a3d0c');
-        bg.addColorStop(0.5, '#c7911f');
-        bg.addColorStop(1, '#6b4810');
-        g.fillStyle = bg;
-        g.fillRect(0, 0, s, s);
-        g.strokeStyle = '#ffe9a0';
-        g.lineWidth = 8;
-        g.strokeRect(10, 10, s - 20, s - 20);
-        g.lineWidth = 3;
-        g.strokeRect(24, 24, s - 48, s - 48);
-        // engraved rune ring
-        g.strokeStyle = 'rgba(255,240,180,0.7)';
-        g.beginPath();
-        g.arc(s / 2, s / 2, 82, 0, TAU);
-        g.stroke();
-        for (let i = 0; i < 16; i++) {
-          const a = (i / 16) * TAU;
-          g.beginPath();
-          g.moveTo(s / 2 + Math.cos(a) * 82, s / 2 + Math.sin(a) * 82);
-          g.lineTo(s / 2 + Math.cos(a) * 94, s / 2 + Math.sin(a) * 94);
-          g.stroke();
-        }
-        g.font = 'bold 150px Georgia, "Times New Roman", serif';
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.shadowColor = '#fff2b0';
-        g.shadowBlur = 24;
-        g.fillStyle = '#fff6cf';
-        g.fillText('?', s / 2, s / 2 + 8);
-      })
-    );
+    this.runeTex = own(canvasTex(256, drawEldenRing));
 
     this.puddleTex = own(
       canvasTex(256, (g, s) => {
@@ -158,15 +260,8 @@ export class ItemAssets {
     // Item box.
     this.boxGeo = own(new THREE.BoxGeometry(1.7, 1.7, 1.7));
     this.cageGeo = own(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.05, 2.05, 2.05)));
-    this.coreGeo = own(new THREE.OctahedronGeometry(0.75, 0));
-    this.boxMat = own(
-      new THREE.MeshBasicMaterial({
-        map: this.boxTex,
-        color: new THREE.Color(1.5, 1.25, 0.8),
-        transparent: true,
-        opacity: 0.92,
-      })
-    );
+    this.coreGeo = own(new THREE.PlaneGeometry(1.5, 1.5));
+    this.boxMat = own(spectralMaterial(new THREE.Color(1.2, 0.8, 0.3)));
     this.cageMat = own(
       new THREE.LineBasicMaterial({
         color: new THREE.Color(2.4, 1.7, 0.5),
@@ -176,11 +271,13 @@ export class ItemAssets {
     );
     this.coreMat = own(
       new THREE.MeshBasicMaterial({
-        color: new THREE.Color(2.4, 1.6, 0.4),
+        map: this.runeTex,
+        color: new THREE.Color(1.8, 1.3, 0.6),
         transparent: true,
-        opacity: 0.55,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
       })
     );
 
@@ -317,7 +414,7 @@ export class ItemAssets {
     const cube = new THREE.Mesh(this.boxGeo, this.boxMat);
     const cage = new THREE.LineSegments(this.cageGeo, this.cageMat);
     const core = new THREE.Mesh(this.coreGeo, this.coreMat);
-    const halo = this.halo(1.6, 1.05, 0.3, 5.2);
+    const halo = this.halo(0.9, 0.6, 0.18, 3.4);
     grp.add(cube, cage, core, halo);
     grp.userData = { cube, cage, core, halo };
     return grp;
@@ -437,13 +534,9 @@ export class ItemAssets {
   }
 
   makeGhost(kind) {
-    const mat = new THREE.MeshBasicMaterial({
-      color: kind === 'horse' ? new THREE.Color(0.5, 1.0, 2.4) : new THREE.Color(0.9, 0.5, 2.2),
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+    const mat = spectralMaterial(
+      kind === 'horse' ? new THREE.Color(0.55, 1.0, 2.2) : new THREE.Color(1.0, 0.5, 2.0)
+    );
     const m = new THREE.Mesh(kind === 'horse' ? this.horseGeo : this.houndGeo, mat);
     m.userData.ownMat = true;
     return m;

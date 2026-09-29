@@ -39,16 +39,21 @@ const GradeShader = {
       // Chromatic aberration: a hint always, more at high boost.
       float ca = (0.0006 + uBoost * 0.0045) * smoothstep(0.1, 0.9, r);
       vec3 col = vec3(0.0);
-      const int N = 8;
-      for (int i = 0; i < N; i++) {
-        float k = float(i) / float(N - 1);
-        vec2 uv = 0.5 + c * (1.0 - blur * k);
-        vec2 off = c * ca * (1.0 + k);
-        col.r += texture2D(tDiffuse, uv + off).r;
-        col.g += texture2D(tDiffuse, uv).g;
-        col.b += texture2D(tDiffuse, uv - off).b;
+      if (uBoost < 0.01) {
+        vec2 off = c * ca;
+        col = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
+      } else {
+        const int N = 8;
+        for (int i = 0; i < N; i++) {
+          float k = float(i) / float(N - 1);
+          vec2 uv = 0.5 + c * (1.0 - blur * k);
+          vec2 off = c * ca * (1.0 + k);
+          col.r += texture2D(tDiffuse, uv + off).r;
+          col.g += texture2D(tDiffuse, uv).g;
+          col.b += texture2D(tDiffuse, uv - off).b;
+        }
+        col /= float(N);
       }
-      col /= float(N);
 
       // Filmic-ish contrast around mid grey and a touch of warm saturation.
       float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));

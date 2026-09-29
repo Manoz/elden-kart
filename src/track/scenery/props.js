@@ -1,6 +1,7 @@
 // Procedural low-poly prop geometry factories (vertex coloured, merged).
 import * as THREE from 'three';
 import { part, mergeParts } from './common.js';
+import { mulberry32 } from '../util.js';
 
 const PI = Math.PI;
 const hash3 = (x, y, z) => {
@@ -24,35 +25,41 @@ export function blob(radius, detail = 1, squash = 1, seed = 1, rough = 0.25) {
   return g;
 }
 
-export function rockGeo(color = 0x777777, seed = 1) {
-  return mergeParts([
-    part(blob(1, 1, 0.72, seed, 0.28), color, { pos: [0, 0.5, 0], shade: 0.45, jitter: 0.15 }),
-  ]);
-}
-
-export function oakGeo({ trunk = 0x5a4028, leaf = 0x4f8a3a, leaf2 = 0x6aa04a, scale = 1 } = {}) {
-  const c = new THREE.CylinderGeometry(0.35, 0.6, 4.4, 6);
-  return mergeParts([
-    part(c, trunk, { pos: [0, 2.2, 0], scale: [scale, scale, scale], shade: 0.5 }),
-    part(blob(3.0, 1, 0.85, 3, 0.2), leaf, {
-      pos: [0, 6.0 * scale, 0],
-      scale: [scale, scale, scale],
-      shade: 0.5,
-      jitter: 0.1,
-    }),
-    part(blob(2.2, 1, 0.85, 5, 0.2), leaf2, {
-      pos: [1.7 * scale, 4.9 * scale, 0.7 * scale],
-      scale: [scale, scale, scale],
-      shade: 0.5,
-      jitter: 0.1,
-    }),
-    part(blob(2.0, 1, 0.85, 7, 0.2), leaf, {
-      pos: [-1.5 * scale, 5.1 * scale, -0.9 * scale],
-      scale: [scale, scale, scale],
-      shade: 0.5,
-      jitter: 0.1,
-    }),
-  ]);
+// Weathered boulder: layered noise displacement, darker crevices and a tinted top (moss, snow, ash).
+export function rockGeo(color = 0x777777, seed = 1, top = null) {
+  const g = new THREE.IcosahedronGeometry(1, 2);
+  const p = g.getAttribute('position');
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n =
+      Math.sin(v.x * 3.1 + seed) * Math.sin(v.y * 2.7 + seed * 2) * Math.sin(v.z * 3.3) * 0.18 +
+      Math.sin(v.x * 7.3 + seed * 3) * Math.sin(v.z * 6.1 + v.y * 5.3) * 0.07 +
+      (hash3(Math.round(v.x * 40), Math.round(v.y * 40), Math.round(v.z * 40) + seed) - 0.5) * 0.05;
+    v.multiplyScalar(1 + n);
+    v.y *= 0.72;
+    // flatten the underside so rocks sit on the ground
+    if (v.y < -0.35) v.y = -0.35 + (v.y + 0.35) * 0.3;
+    p.setXYZ(i, v.x, v.y + 0.5, v.z);
+  }
+  g.computeVertexNormals();
+  const out = part(g, color, { shade: 0.4, jitter: 0.08 });
+  const nrm = out.getAttribute('normal');
+  const col = out.getAttribute('color');
+  const tc = new THREE.Color(top ?? color);
+  for (let i = 0; i < col.count; i++) {
+    const up = nrm.getY(i);
+    // crevices (downward faces) darker, upward faces take the top tint
+    const k = up < 0 ? 0.7 + 0.3 * (1 + up) : 1;
+    const t = top ? Math.max(0, (up - 0.55) / 0.45) : 0;
+    col.setXYZ(
+      i,
+      (col.getX(i) * (1 - t) + tc.r * t) * k,
+      (col.getY(i) * (1 - t) + tc.g * t) * k,
+      (col.getZ(i) * (1 - t) + tc.b * t) * k
+    );
+  }
+  return out;
 }
 
 export function pineGeo({ trunk = 0x4a3524, leaf = 0x2f5f3a, leaf2 = 0x3b7346 } = {}) {
@@ -187,17 +194,6 @@ export function wallSegGeo({ stone = 0x6c6a66, len = 22, h = 12, th = 4, crenel 
   return mergeParts(list);
 }
 
-export function houseGeo({ wall = 0xb79f7a, roof = 0x6a3b2a, w = 8, d = 8, h = 7 } = {}) {
-  return mergeParts([
-    part(new THREE.BoxGeometry(w, h, d), wall, { pos: [0, h / 2, 0], shade: 0.4, jitter: 0.08 }),
-    part(new THREE.ConeGeometry(Math.max(w, d) * 0.78, h * 0.55, 4), roof, {
-      pos: [0, h + h * 0.27, 0],
-      rot: [0, PI / 4, 0],
-      shade: 0.2,
-    }),
-  ]);
-}
-
 export function mushroomGeo({ stem = 0xd8c4a0, cap = 0xd23a1a, r = 1.6 } = {}) {
   return mergeParts([
     part(new THREE.CylinderGeometry(r * 0.22, r * 0.32, r * 1.6, 7), stem, {
@@ -287,12 +283,6 @@ export function churchGeo({ wall = 0xc9bfa5, roof = 0x5a3a2a, trim = 0x8a7a5a } 
   ]);
 }
 
-export function ribGeo(bone = 0xd9d0bc, radius = 16, tube = 1.0, arc = 2.9) {
-  return mergeParts([
-    part(new THREE.TorusGeometry(radius, tube, 6, 22, arc), bone, { shade: 0.3, jitter: 0.05 }),
-  ]);
-}
-
 // Giant skeleton lying on its back: ribcage arch, spine, skull, femurs.
 export function giantSkeletonGeo(bone = 0xd9cdb4, dark = 0x2a1410) {
   const list = [];
@@ -370,4 +360,176 @@ export function rootGeo(curvePts, radius = 3, color = 0x5a3e24, seg = 40) {
   }
   g.computeVertexNormals();
   return part(g, color, { shade: 0.2, jitter: 0.1 });
+}
+
+// Leyndell architecture. Each returns { body, glow }: vertex-coloured stone and the lit window panes,
+// built in the same local frame so both can be instanced with the same transforms.
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+
+function windowGrid(
+  list,
+  glow,
+  { w, d, y0, rows, rowH, cols, winW = 1.1, winH = 2.2, dark = 0x2a2218, lit = 0.35, rng }
+) {
+  for (let r = 0; r < rows; r++) {
+    const y = y0 + r * rowH;
+    for (let c = 0; c < cols; c++) {
+      const u = (c + 0.5) / cols - 0.5;
+      for (const [nx, nz, span] of [
+        [0, 1, w],
+        [0, -1, w],
+        [1, 0, d],
+        [-1, 0, d],
+      ]) {
+        const px = nx ? (nx * w) / 2 + nx * 0.06 : u * span;
+        const pz = nz ? (nz * d) / 2 + nz * 0.06 : u * span;
+        const rot = [0, nx ? PI / 2 : 0, 0];
+        const g = rng() < lit ? glow : list;
+        g.push(
+          part(box(winW, winH, 0.12), g === glow ? 0xffc870 : dark, {
+            pos: [px, y, pz],
+            rot,
+            shade: 0,
+          })
+        );
+        // arched head
+        g.push(
+          part(
+            new THREE.CylinderGeometry(winW / 2, winW / 2, 0.12, 8, 1, false, 0, PI),
+            g === glow ? 0xffc870 : dark,
+            {
+              pos: [px, y + winH / 2, pz],
+              rot: [PI / 2, 0, nx ? PI / 2 : 0],
+              shade: 0,
+            }
+          )
+        );
+      }
+    }
+  }
+}
+
+export function leyndellBlockGeo({
+  stone = 0xe0d4b4,
+  trim = 0xc8b48a,
+  roof = 0xcfa850,
+  seed = 1,
+} = {}) {
+  const rng = mulberry32(seed * 7717 + 3);
+  const w = 11;
+  const d = 10;
+  const h = 15;
+  const body = [
+    part(box(w + 1.2, 2, d + 1.2), trim, { pos: [0, 1, 0], shade: 0.2 }),
+    part(box(w, h, d), stone, { pos: [0, h / 2, 0], shade: 0.35, jitter: 0.04 }),
+    part(box(w + 0.8, 0.8, d + 0.8), trim, { pos: [0, h - 0.4, 0], shade: 0.1 }),
+    part(box(w + 0.4, 1.4, d + 0.4), stone, { pos: [0, h + 0.7, 0], shade: 0.2 }),
+  ];
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      body.push(
+        part(box(1.1, h, 1.1), trim, { pos: [(sx * w) / 2, h / 2, (sz * d) / 2], shade: 0.3 })
+      );
+  // low golden dome on half of them, a pitched lead roof on the rest
+  if (rng() < 0.5) {
+    body.push(
+      part(new THREE.SphereGeometry(4.2, 14, 8, 0, PI * 2, 0, PI / 2), roof, {
+        pos: [0, h + 1.4, 0],
+        shade: 0.25,
+      })
+    );
+    body.push(part(new THREE.ConeGeometry(0.4, 3, 6), roof, { pos: [0, h + 6.8, 0], shade: 0 }));
+  } else {
+    body.push(
+      part(new THREE.CylinderGeometry(0.1, w * 0.62, 5, 4), 0x6a6258, {
+        pos: [0, h + 3.9, 0],
+        rot: [0, PI / 4, 0],
+        scale: [1, 1, d / w],
+        shade: 0.3,
+      })
+    );
+  }
+  const glow = [];
+  windowGrid(body, glow, { w, d, y0: 4.5, rows: 3, rowH: 3.6, cols: 3, rng });
+  return {
+    body: mergeParts(body),
+    glow: mergeParts(glow.length ? glow : [part(box(0.01, 0.01, 0.01), 0, {})]),
+  };
+}
+
+export function domeHallGeo({ stone = 0xe4d8ba, trim = 0xc8b48a, dome = 0xd6b04e, seed = 2 } = {}) {
+  const rng = mulberry32(seed * 7717 + 3);
+  const body = [
+    part(new THREE.CylinderGeometry(9, 9.6, 2, 8), trim, { pos: [0, 1, 0], shade: 0.2 }),
+    part(new THREE.CylinderGeometry(8, 8, 12, 8), stone, { pos: [0, 8, 0], shade: 0.35 }),
+    part(new THREE.CylinderGeometry(8.5, 8.5, 1, 8), trim, { pos: [0, 14.3, 0], shade: 0.1 }),
+    part(new THREE.CylinderGeometry(6.4, 6.4, 4, 16), stone, { pos: [0, 16.6, 0], shade: 0.3 }),
+    part(new THREE.SphereGeometry(6.8, 20, 10, 0, PI * 2, 0, PI / 2), dome, {
+      pos: [0, 18.4, 0],
+      shade: 0.3,
+    }),
+    part(new THREE.CylinderGeometry(1.1, 1.3, 3, 8), trim, { pos: [0, 26.2, 0], shade: 0.2 }),
+    part(new THREE.ConeGeometry(1.2, 4, 8), dome, { pos: [0, 29.6, 0], shade: 0 }),
+  ];
+  const glow = [];
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * PI * 2 + PI / 8;
+    const lit = rng() < 0.4;
+    (lit ? glow : body).push(
+      part(box(1.6, 5, 0.3), lit ? 0xffc870 : 0x2a2218, {
+        pos: [Math.sin(a) * 7.45, 8.5, Math.cos(a) * 7.45],
+        rot: [0, a, 0],
+        shade: 0,
+      })
+    );
+  }
+  return {
+    body: mergeParts(body),
+    glow: mergeParts(glow.length ? glow : [part(box(0.01, 0.01, 0.01), 0, {})]),
+  };
+}
+
+export function spireTowerGeo({
+  stone = 0xe0d4b4,
+  trim = 0xc8b48a,
+  tip = 0xd6b04e,
+  seed = 3,
+} = {}) {
+  const rng = mulberry32(seed * 7717 + 3);
+  const h = 34;
+  const body = [
+    part(box(7, 2, 7), trim, { pos: [0, 1, 0], shade: 0.2 }),
+    part(box(5.6, h, 5.6), stone, { pos: [0, h / 2, 0], shade: 0.35, jitter: 0.04 }),
+    part(box(6.6, 1, 6.6), trim, { pos: [0, h, 0], shade: 0.1 }),
+    part(new THREE.ConeGeometry(4.3, 14, 4), tip, {
+      pos: [0, h + 7.5, 0],
+      rot: [0, PI / 4, 0],
+      shade: 0.3,
+    }),
+  ];
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      body.push(
+        part(new THREE.ConeGeometry(0.7, 5, 4), tip, {
+          pos: [sx * 3, h + 3, sz * 3],
+          rot: [0, PI / 4, 0],
+          shade: 0.2,
+        })
+      );
+  const glow = [];
+  windowGrid(body, glow, {
+    w: 5.6,
+    d: 5.6,
+    y0: 8,
+    rows: 5,
+    rowH: 5,
+    cols: 1,
+    winW: 1.3,
+    winH: 2.8,
+    rng,
+  });
+  return {
+    body: mergeParts(body),
+    glow: mergeParts(glow.length ? glow : [part(box(0.01, 0.01, 0.01), 0, {})]),
+  };
 }

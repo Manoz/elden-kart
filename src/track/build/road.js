@@ -2,9 +2,8 @@
 import * as THREE from 'three';
 import { KERB } from '../Centerline.js';
 import { buildStrip, loopIndices, runsOf, indexRange, merge } from './strips.js';
+import { makeRoadMaps, makeStoneKerbTexture } from '../surfaces.js';
 import {
-  makeRoadTexture,
-  makeKerbTexture,
   makeGroundTexture,
   makeWallTexture,
   makeChevronTexture,
@@ -41,12 +40,17 @@ export function buildRoad(core, root) {
   const hw = (i) => core.hw[i];
 
   // --- road surface
-  const roadTex = track(makeRoadTexture(L.road, L.seed));
+  const roadMaps = makeRoadMaps(L.road, L.halfWidth * 2, 24, L.seed);
+  Object.values(roadMaps).forEach(track);
   const roadMat = track(
     new THREE.MeshStandardMaterial({
-      map: roadTex,
+      map: roadMaps.map,
+      normalMap: roadMaps.normalMap,
       roughness: L.road.rough ?? 0.92,
       metalness: L.road.metal ?? 0,
+      emissive: roadMaps.glowMap ? new THREE.Color(L.road.glow) : 0x000000,
+      emissiveMap: roadMaps.glowMap ?? null,
+      emissiveIntensity: roadMaps.glowMap ? 1.4 : 0,
     })
   );
   mesh(
@@ -56,7 +60,7 @@ export function buildRoad(core, root) {
   );
 
   // --- kerbs
-  const kerbTex = track(makeKerbTexture(L.kerb[0], L.kerb[1]));
+  const kerbTex = track(makeStoneKerbTexture(L.kerb[0], L.kerb[1], L.seed));
   const kerbMat = track(new THREE.MeshStandardMaterial({ map: kerbTex, roughness: 0.8 }));
   mesh(
     merge([
@@ -128,36 +132,6 @@ export function buildRoad(core, root) {
     shoulderMat,
     'shoulders'
   );
-
-  // --- emissive edge lines
-  if (L.edgeGlow) {
-    const glowMat = decal(
-      track(
-        new THREE.MeshBasicMaterial({
-          color: new THREE.Color(L.edgeGlow).multiplyScalar(1.8),
-          toneMapped: false,
-        })
-      )
-    );
-    mesh(
-      merge([
-        buildStrip(core, {
-          idx: all,
-          a: (i) => [-hw(i) + 0.9, 0.05],
-          b: (i) => [-hw(i) + 1.25, 0.05],
-          vScale: 8,
-        }),
-        buildStrip(core, {
-          idx: all,
-          a: (i) => [hw(i) - 1.25, 0.05],
-          b: (i) => [hw(i) - 0.9, 0.05],
-          vScale: 8,
-        }),
-      ]),
-      glowMat,
-      'edgeGlow'
-    );
-  }
 
   // --- walls
   const W = L.wall;
@@ -287,7 +261,7 @@ export function buildRoad(core, root) {
     track(
       new THREE.MeshBasicMaterial({
         map: chevTex,
-        color: boostColor.clone().multiplyScalar(2.4),
+        color: boostColor.clone().multiplyScalar(1.3),
         transparent: true,
         depthWrite: false,
         toneMapped: false,

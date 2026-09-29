@@ -80,7 +80,7 @@ export const haligtree = {
   rampEmissive: 0x100c08,
   arch: 0xffd79a,
   banner: { bg: '#141412', fg: '#f2e2c0', trim: '#b89a5a' },
-  fog: { color: 0x5f7280, density: 0.0052 },
+  fog: { color: 0x5f7280, density: 0.0078 },
   lights: {
     hemiSky: 0x9fb2c0,
     hemiGround: 0x2a2826,

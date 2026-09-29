@@ -2,10 +2,10 @@
 // blue-grey haze, colossal branches arch over the road, salmon shelf fungi and hanging lichen cling to
 // the bark, rust-red foliage, pale Elphael stonework and drifting scarlet rot spores.
 import * as THREE from 'three';
-import { instanced, propMaterial, scatter, roadside, part, mergeParts } from './common.js';
+import { instanced, propMaterial, scatter, roadside, part, mergeParts, addSway } from './common.js';
 import { rockGeo, archGeo, rootGeo, pillarGeo, deadTreeGeo } from './props.js';
 import { graceSites, mistPuffs, ambient, lampGlows } from './kit.js';
-import { plantTrees, grassField } from './flora.js';
+import { plantTrees, grassField, leafTexture } from './flora.js';
 import { KERB } from '../Centerline.js';
 
 const BARK = 0x5a5046;
@@ -221,6 +221,31 @@ export function buildHaligtree(ctx) {
       });
     }
   });
+  // high boughs crossing the corridor to carry the canopy
+  for (let k = 0; k < 22; k++) {
+    const p = core.getPoint((k + rng()) / 22);
+    const y = p.pos.y + 46 + rng() * 18;
+    const span = 60 + rng() * 40;
+    const skew = (rng() - 0.5) * 50;
+    const B = (l, up, ahead) => [
+      p.pos.x + p.right.x * l + p.tangent.x * ahead,
+      y + up,
+      p.pos.z + p.right.z * l + p.tangent.z * ahead,
+    ];
+    barkParts.push(
+      rootGeo(
+        [
+          B(-span, -6, -skew),
+          B(-span * 0.3, 4, -skew * 0.3),
+          B(span * 0.3, 3, skew * 0.3),
+          B(span, -4, skew),
+        ],
+        2.4,
+        BARK,
+        30
+      )
+    );
+  }
   const bark = mergeParts(barkParts);
   ctx.add(new THREE.Mesh(bark, propMaterial({ side: THREE.DoubleSide })));
   ctx.own(bark);
@@ -258,7 +283,35 @@ export function buildHaligtree(ctx) {
 
   graceSites(ctx, [0.04, 0.26, 0.5, 0.72, 0.9], { color: 0xffd36a, motes: 0xfff0c0 });
 
-  mistPuffs(ctx, { count: 200, color: 0x8a9ca8, alpha: 0.32, size: 50, yMin: 2, yMax: 18 });
+  // canopy: a ceiling of dark rust foliage that closes the sky, with gaps for the grey light
+  const canopyGeo = new THREE.PlaneGeometry(1, 1);
+  const canopyMat = addSway(
+    new THREE.MeshLambertMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide }),
+    ctx.uTime,
+    0.03,
+    1
+  );
+  canopyMat.alphaToCoverage = true;
+  const canopyTones = [0x4a2a26, 0x5a3430, 0x3a2e2a, 0x6a3a32, 0x44382e];
+  const canopy = [];
+  for (let n = 0; n < 2400; n++) {
+    const i = Math.floor(rng() * core.N);
+    const off = (rng() * 2 - 1) * 70;
+    canopy.push({
+      x: core.px[i] + core.rx[i] * off,
+      y: core.py[i] + 42 + rng() * 30,
+      z: core.pz[i] + core.rz[i] * off,
+      rx: -Math.PI / 2 + (rng() - 0.5) * 0.8,
+      ry: rng() * 6.28,
+      rz: (rng() - 0.5) * 0.8,
+      s: 10 + rng() * 10,
+      color: canopyTones[Math.floor(rng() * canopyTones.length)],
+    });
+  }
+  ctx.add(instanced(canopyGeo, canopyMat, canopy)).name = 'canopy';
+  ctx.own(canopyGeo, canopyMat);
+
+  mistPuffs(ctx, { count: 260, color: 0x8a9ca8, alpha: 0.34, size: 52, yMin: 2, yMax: 22 });
   // drifting scarlet rot spores
   ambient(ctx, {
     count: 2600,

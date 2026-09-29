@@ -22,13 +22,14 @@ pnpm dev
 
 Then open <http://localhost:5173>.
 
-| Command        | What it does                                       |
-| -------------- | -------------------------------------------------- |
-| `pnpm dev`     | Starts the dev server with hot reload on port 5173 |
-| `pnpm build`   | Builds the production bundle into `dist/`          |
-| `pnpm preview` | Serves the production build on port 4173           |
-| `pnpm lint`    | Lints the JavaScript with ESLint                   |
-| `pnpm format`  | Formats code and docs with Prettier                |
+| Command             | What it does                                       |
+| ------------------- | -------------------------------------------------- |
+| `pnpm dev`          | Starts the dev server with hot reload on port 5173 |
+| `pnpm build`        | Builds the production bundle into `dist/`          |
+| `pnpm preview`      | Serves the production build on port 4173           |
+| `pnpm lint`         | Lints the JavaScript with ESLint                   |
+| `pnpm format`       | Formats code and docs with Prettier                |
+| `pnpm format:check` | Checks formatting without writing (used in CI)     |
 
 ## How to play
 

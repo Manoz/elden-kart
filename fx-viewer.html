@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Elden Kart - FX / Items viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05060a;
+        overflow: hidden;
+        font-family: Georgia, serif;
+        color: #e8d29a;
+      }
+      canvas {
+        display: block;
+      }
+      #hud {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        text-shadow: 0 1px 3px #000;
+        pointer-events: none;
+      }
+      #panel {
+        position: fixed;
+        right: 12px;
+        top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      #panel button {
+        background: rgba(20, 16, 8, 0.75);
+        color: #f0d68a;
+        border: 1px solid #8a6a22;
+        padding: 4px 10px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+      }
+      #panel button:hover {
+        background: rgba(70, 50, 12, 0.9);
+      }
+      #item {
+        font-size: 18px;
+        color: #ffe08a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div>
+        WASD drive, Space drift, E use item (hold S = backward), 1-0 give item, B boost fx, P
+        post-fx
+      </div>
+      <div>Held: <span id="item">-</span></div>
+    </div>
+    <div id="panel"></div>
+    <script type="module" src="/src/fx/viewer.js"></script>
+  </body>
+</html>

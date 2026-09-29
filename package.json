@@ -1,0 +1,26 @@
+{
+  "name": "elden-kart",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Unofficial, non-commercial fan kart racer built with Claude and three.js",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "three": "^0.186.1",
+    "vite": "^8.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9"
+  },
+  "packageManager": "pnpm@12.8.1"
+}

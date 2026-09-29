@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elden Kart - UI viewer</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: linear-gradient(#1c2a44, #7a8a6a 60%, #2a3a22);
+      }
+      #ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      #ui > * {
+        pointer-events: auto;
+      }
+      #panel {
+        position: fixed;
+        z-index: 99;
+        left: 6px;
+        bottom: 6px;
+        max-width: 46vw;
+        font: 11px monospace;
+        color: #ddd;
+        background: rgba(0, 0, 0, 0.75);
+        padding: 6px;
+        border: 1px solid #555;
+        max-height: 40vh;
+        overflow: auto;
+      }
+      #panel button {
+        font: 11px monospace;
+        margin: 1px;
+        cursor: pointer;
+      }
+      #panel.min > :not(.tog) {
+        display: none;
+      }
+      #log {
+        white-space: pre;
+        max-height: 90px;
+        overflow: auto;
+        color: #9f9;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui"></div>
+    <div id="panel">
+      <button class="tog" onclick="this.parentNode.classList.toggle('min')">panel</button>
+      <div id="ctl"></div>
+      <div id="log"></div>
+    </div>
+    <script type="module" src="/src/ui/viewer.js"></script>
+  </body>
+</html>

@@ -7,7 +7,7 @@ Elden Kart is plain JavaScript (ES modules, no TypeScript), rendered with three.
 - Shaders are written inline.
 - Music and sound effects are synthesized with WebAudio.
 
-The repository contains no binary assets.
+The game ships no binary assets.
 
 ## Conventions
 

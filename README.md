@@ -1,5 +1,7 @@
 # Elden Kart
 
+![Elden Kart title screen](docs/banner.webp)
+
 An arcade kart racer set in a world inspired by the Lands Between, built with [three.js](https://threejs.org/) and [Vite](https://vite.dev/). It has eight racers, four circuits, ten items and a Grand Prix mode. All graphics and audio are procedural.
 
 > **Unofficial, non-commercial fan project** made for learning and testing purposes. It is not affiliated with, endorsed, or sponsored by FromSoftware, Bandai Namco Entertainment, or Nintendo. See [DISCLAIMER.md](DISCLAIMER.md).
@@ -103,7 +105,7 @@ The dev server also serves standalone sandboxes:
 
 `node src/track/check.mjs` runs numeric checks on the four circuit layouts: no self-intersection, smooth sampling, and a valid starting grid.
 
-Every asset is generated at runtime. There are no binary files in the repository:
+Every game asset is generated at runtime. The only binary file in the repository is the README banner:
 
 - Models are built from three.js primitives.
 - Textures are drawn on canvas.

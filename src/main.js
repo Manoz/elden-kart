@@ -1,4 +1,7 @@
+import { inject } from '@vercel/analytics';
 import { Game } from './core/Game.js';
+
+inject();
 
 const canvas = document.getElementById('game');
 const uiRoot = document.getElementById('ui');
